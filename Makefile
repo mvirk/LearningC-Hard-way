@@ -1,6 +1,16 @@
 CFLAGS=-Wall -g 
 FILES=hello ex2 ex3 ex4 ex5 using_functions Dreaded_Pointers Dreaded_Pointers2 PersonCreator PersonCreator2 Database
 
+# ANSI colours
+NO_COLOR=\x1b[0m
+OK_COLOR=\x1b[32;01m
+ERROR_COLOR=\x1b[31;01m
+WARN_COLOR=\x1b[33;01m
+
+SUCESS_MSG=$(OK_COLOR)Build Successful$(NO_COLOR)
+MAN_MSG=$(WARN_COLOR)Use [./Database MAN] command to see the manual$(NO_COLOR)
+
+
 all: $(FILES)
 .PHONY : all
 ex3: 
@@ -36,10 +46,9 @@ PersonCreator2: clean
 
 Database: clean
 	gcc $(CFLAGS) Database.c -o Database
-	@echo "Database.c compiled successfully."
-	@echo "Use [./Database MAN] command to see the manual."
-	
-	#valgrind --track-origins=yes --leak-check=full --log-file=valgrind_log ./Database $(ARGS)
+#valgrind --track-origins=yes --leak-check=full --log-file=valgrind_log ./Database $(ARGS)
+	@/bin/echo -e "\n$(SUCESS_MSG)"	
+	@/bin/echo -e "$(MAN_MSG)"
 
 clean:
 	rm -rf $(FILES)

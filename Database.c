@@ -222,7 +222,6 @@ int main(int argc,char *argv[]){
 	char *dBFileName;
 	char *OperationMode;
 	Connection *connection;
-	int i=0;
 	Info *info = malloc(sizeof(Info));
 
 
