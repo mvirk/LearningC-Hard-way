@@ -12,12 +12,14 @@
 #define 	ANSI_COLOR_GREEN    "\x1b[32m"
 #define 	ANSI_COLOR_RESET	"\x1b[0m"
 #define 	ANSI_COLOR_CYAN     "\x1b[36m"
+#define 	BPurple				"\033[1;35m" 
+#define 	Color_Off			"\033[0m" 
 
 #define		TR_ERROR(y)		printf(ANSI_COLOR_RED "\n[ERROR]:  %s \r\n" ANSI_COLOR_RESET, y);
 #define 	TR_DEBUG(y)		printf(ANSI_COLOR_YELLOW "\n[DEBUG]:  %s \r\n" ANSI_COLOR_RESET, y);
 #define 	TR_MESSAGE(y)	printf(ANSI_COLOR_CYAN "\n[MESSAGE:] %s \r\n" ANSI_COLOR_RESET, y);
 #define 	TR_MAN(y)		printf(ANSI_COLOR_GREEN "\n %s \r\n" ANSI_COLOR_RESET, y);
-
+#define 	TR_ENTRY(y)		printf(BPurple "\n %s \r\n" Color_Off, y);
 
 #define 	MAX_DATA_LEN	512 /* 512 characters, it means 512 bytes*/
 #define 	MAX_ROWS		100
@@ -30,7 +32,7 @@
 // Defines the structure for entry with id and stuff
 typedef struct Entry{
 	uint8_t id;
-	bool setFlag;
+	uint8_t setFlag;
 	char *name;
 	char *email;
 } Entry;
@@ -77,6 +79,7 @@ int String2Int(char *string);
 void Load_DB2Stack(Connection *connection);
 void InitializeDatabase(Connection *connection, char *OptionalArguments[]);
 uint8_t InsertEntry(Connection *connection, char *OptionalArguments[]);
+uint8_t FetchEntry(Connection *connection, char *id);
 void Database_Close(Connection *connection);
 
 
@@ -113,6 +116,7 @@ Connection* Database_Open(Info *info){
 	connection->dB = (Database*)malloc(sizeof(Database));
 	if(!connection->dB) die_motherfucker("Memory allocation failed for Database.");
 	connection->info = info;
+	connection->info->Message = malloc(MAX_DATA_LEN*sizeof(char));
 
 	switch(connection->info->state){
 		case(INIT):
@@ -129,7 +133,7 @@ Connection* Database_Open(Info *info){
 			connection->stream = fopen(connection->info->DB_NAME, "r+");
 			break;
 		case(FETCH):
-			break;
+			connection->stream = fopen(connection->info->DB_NAME, "r");
 		case(DELETE):
 			break;
 		case(LIST):
@@ -163,7 +167,7 @@ void InitializeDatabase(Connection *connection, char *OptionalArguments[]){
 
 		for (i=0; i<MAX_ROWS; i++){
 			/* Prototype for struct initialization */
-			Entry dummy_entry = {.id=i, .setFlag=false};
+			Entry dummy_entry = {.id=i, .setFlag=0};
 			connection->dB->entry[i] = dummy_entry;
 		}	
 	/*Check if there is any entry to add with initialization*/
@@ -178,33 +182,53 @@ uint8_t InsertEntry(Connection *connection, char *OptionalArguments[]){
 	char *name = OptionalArguments[4];
 	char *email = OptionalArguments[5];
 	int retcode = 0;
-	const char *res;
-
-	sprintf(connection->info->Message, "id = %s", id);
-	TR_DEBUG(connection->info->Message);
+	
 	uint8_t ID = (uint8_t)String2Int(id);
-	//char *Message=0;
+	sprintf(connection->info->Message, "id = %d", ID);
+	TR_DEBUG(connection->info->Message);
 
 	rewind(connection->stream);
 	if(connection->dB->entry[ID].setFlag){
 		die_motherfucker("Cannot insert an entry. ID exists.");
 	}
 	else{
-		connection->dB->entry[ID].setFlag = true;
-		res = strncpy(connection->dB->entry[ID].name, name, strlen(name));
-		if(!res) die_motherfucker("Name copy failed in a DB-Entry.");
-		res = strncpy(connection->dB->entry[ID].email, email, strlen(email));
-		if(!res) die_motherfucker("Email copy failed in a DB-Entry.");
-
+		connection->dB->entry[ID].setFlag = 1;
+		connection->dB->entry[ID].name = name;
+		connection->dB->entry[ID].email = email;
 		retcode = fwrite(connection->dB, sizeof(Database), 1, connection->stream);
 		if(!retcode){
 			die_motherfucker("Could not insert an Entry. Failed to Write.");
 		}
 		else{
 			sprintf(connection->info->Message,"Data inserted in Database=%s, with id=%d, and the state=%d", connection->info->DB_NAME, ID, connection->info->state);
+			printf("\n %s \n", connection->dB->entry[ID].name);
+			printf("\n %s \n", connection->dB->entry[ID].email);
 			TR_MESSAGE(connection->info->Message);
 		}
 	}
+	return 0;
+}
+
+uint8_t FetchEntry(Connection *connection, char *id){
+	
+/*	char *fetched_id= malloc(sizeof(char*));
+	char *fetched_entry = malloc(MAX_DATA_LEN*sizeof(char));*/
+	uint8_t ID = (uint8_t)String2Int(id);
+	sprintf(connection->info->Message, "Fetching, entry id = %d", ID);
+	TR_DEBUG(connection->info->Message);
+
+	printf("\n%d\n", connection->dB->entry[ID].setFlag);
+	printf("\n%s\n", connection->dB->entry[ID].name);
+	printf("\n%s\n", connection->dB->entry[ID].email);
+
+/*	sprintf(fetched_id, "--- Entry ID=%d",ID);
+	TR_ENTRY(fetched_id);
+	sprintf(fetched_entry, "--- Name = %s; --- Email = %s", connection->dB->entry[ID].name, connection->dB->entry[ID].email);
+	TR_ENTRY(fetched_entry);
+
+	free(fetched_id);
+	free(fetched_entry);*/
+
 	return 0;
 }
 
@@ -247,11 +271,10 @@ int main(int argc,char *argv[]){
 		info->DB_NAME = dBFileName;
 		info->Num_Args = argc;
 
+		/* Initializing a Database*/
 		if(strcmp(OperationMode, "--init")==0) {
 
 			info->state = INIT;
-			info->Message = (char*)malloc(sizeof(char));
-
 			if (argc==4 || argc==5){
 				die_motherfucker("Incomplete initial entry arguments. Use [id name email] OR do not provide any argument.");
 			}
@@ -264,22 +287,35 @@ int main(int argc,char *argv[]){
 				Database_Close(connection);
 			}
 		}
+		/* Inserting an Entry into the Database*/
 		else if(strcmp(OperationMode, "--insert")==0){
+
 			info->state = INSERT;
 			connection = Database_Open(info);
+			Load_DB2Stack(connection);
 			InsertEntry(connection, argv);
 			Database_Close(connection);
 
 		}
+		/*Fetch an entry using id from the esisting Database*/
 		else if(strcmp(OperationMode, "--fetch")==0){
+
+			info->state = FETCH;
+			connection = Database_Open(info);
+			Load_DB2Stack(connection);
+			FetchEntry(connection, argv[3]);
+			Database_Close(connection);
 			
 		}
+		/*Delete an Entry from the existing Database*/
 		else if(strcmp(OperationMode, "--delete")==0){
 			
 		}
+		/*Print out a list of Entries in an existing Database*/
 		else if(strcmp(OperationMode, "--list")==0){
 			
 		}
+		/*Throw an error message if the OperationMode is unrecognizable.*/
 		else {
 			die_motherfucker("Invalid Operation Mode.");
 		}
